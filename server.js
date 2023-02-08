@@ -1,29 +1,38 @@
-import { ApolloServer, gql } from 'apollo-server';
+import { ApolloServer } from 'apollo-server';
 import { ApolloServerPluginLandingPageGraphQLPlayground } from 'apollo-server-core';
-import { quotes, users } from './fakedb.js'
+import typeDefs from './schemaGql.js';
+import mongoose from 'mongoose';
+import { JWT_SECRET, MONGO_URI } from './config.js';
+import jwt from 'jsonwebtoken'
 
-const typeDefs = gql`
-    type Query{
-        users:[User]
-    }
+mongoose.connect(MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+});
 
-    type User{
-        id:ID
-        firstname:String
-        lastname:String
-        email:String
-    }
-`;
+mongoose.connection.on("connected", () => {
+    console.log('connected to mongodb');
+});
 
-const resolvers = {
-    Query:{
-        users: () => users
-    }
-}
+mongoose.connection.on("error", (error) => {
+    console.log('error in mongodb', error)
+});
+
+import './Models/Quotes.js';
+import './Models/User.js';
+import resolvers from './resolvers.js';
 
 const server = new ApolloServer({
     typeDefs,
     resolvers,
+    context: ({ req }) => {
+        const { authorization } = req.headers
+        console.log('authorization========',req.headers)
+        if(authorization){
+            const { userId } = jwt.verify(authorization, JWT_SECRET)
+            return { userId }
+        }
+    },
     plugins: [
         ApolloServerPluginLandingPageGraphQLPlayground()
     ]
