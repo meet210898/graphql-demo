@@ -1,4 +1,3 @@
-import { quotes, users } from './fakedb.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from './config.js';
@@ -9,13 +8,17 @@ const Quote = mongoose.model("Quote");
 
 const resolvers = {
     Query:{
-        users: () => users,
-        user: (_, { _id }) => users.find(user => user._id === _id),
-        quotes: () => quotes,
-        iquote: (_, { by }) => quotes.filter(quote => quote.by === by)
+        users: async () => await User.find({}),
+        user: async (_, { _id }) => await User.findOne({_id}),
+        quotes: async () => await Quote.find({}).populate("by", "_id firstName"),
+        iquote: async (_, { by }) => await Quote.find({by}),
+        myprofile: async (_, args, { userId }) => {
+            if(!userId) throw new Error("You must be logged in")
+            return await User.findOne({_id: userId})
+        }
     },
     User:{
-        quotes: (user) => quotes.filter(quote => quote.by === user._id)
+        quotes: async (user) => await Quote.find({by: user._id})
     },
     Mutation:{
         signupUser: async (_, { userNew }) => {
@@ -44,7 +47,6 @@ const resolvers = {
         },
         createQuote: async (_, { name }, { userId }) => {
             if(!userId){
-                console.log('userid========',userId)
                 throw new Error("You must be logged in")  
             } 
             const newQuote = new Quote({
@@ -53,6 +55,40 @@ const resolvers = {
             })
             await newQuote.save()
             return "Quote saved successfully!"
+        },
+        updateUser: async (_, args, { userId }) => {
+            if(!userId){
+                throw new Error("You must be logged in")  
+            }
+            await User.updateOne(
+                { _id: args._id },
+                { $set: { ...args } }
+            );
+            return "User updated!!"
+        },
+        deleteUser: async (_, { _id }, { userId }) => {
+            if(!userId){
+                throw new Error("You must be logged in")  
+            }
+            await User.remove({ _id: _id })
+            return "User deleted!"
+        },
+        updateQuote: async (_, { name }, { userId }) => {
+            if(!userId){
+                throw new Error("You must be logged in")  
+            }
+            await Quote.updateOne(
+                { by: userId },
+                { $set: { name: name } }
+            );
+            return "Quote updated!!"
+        },
+        deleteQuote: async (_, { name }, { userId }) => {
+            if(!userId){
+                throw new Error("You must be logged in")  
+            }
+            await Quote.remove({ by:userId, name: name })
+            return "Quote deleted!!"
         }
     }
 }
